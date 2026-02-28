@@ -8,6 +8,8 @@
       "Bash(*prisma-product.sh*)",
       "Bash(*prisma-stores.sh*)",
       "Bash(*prisma-validate-cart.sh*)",
+      "WebFetch(domain:prismamarket.ee)",
+      "WebFetch(domain:*.prismamarket.ee)",
       "mcp__plugin_playwright_playwright__browser_navigate",
       "mcp__plugin_playwright_playwright__browser_close",
       "mcp__plugin_playwright_playwright__browser_evaluate",
