@@ -132,7 +132,7 @@ print(f'Cart: {len(js_items)} items, estimated total: {total:.2f} €', file=sys
 for item in js_items:
     print(f'  {item[\"ean\"]} {item[\"name\"]} x{item[\"itemCount\"]} = {item[\"price\"] * item[\"itemCount\"]:.2f} €', file=sys.stderr)
 
-# Generate Playwright code
+# Write cart-loading JS to temp file (read from page via addScriptTag)
 cart_data = {
     'cacheVersion': '1.2.17',
     'cart': {'cartItems': js_items},
@@ -140,44 +140,32 @@ cart_data = {
 }
 cart_json = json.dumps(cart_data, ensure_ascii=False)
 
+loader_file = '/tmp/prisma-cart-loader.js'
+with open(loader_file, 'w') as f:
+    f.write('(function() {\\n')
+    f.write('  var raw = localStorage.getItem(\"uc_settings\");\\n')
+    f.write('  if (raw) {\\n')
+    f.write('    var settings = JSON.parse(raw);\\n')
+    f.write('    var now = Date.now();\\n')
+    f.write('    settings.services.forEach(function(service) {\\n')
+    f.write('      var hasAccepted = service.history.some(function(h) { return h.action === \"onAcceptAllServices\"; });\\n')
+    f.write('      if (!hasAccepted) {\\n')
+    f.write('        service.history.push({ action: \"onAcceptAllServices\", language: \"et\", status: true, timestamp: now, type: \"explicit\", versions: service.history[0].versions });\\n')
+    f.write('      }\\n')
+    f.write('    });\\n')
+    f.write('    localStorage.setItem(\"uc_settings\", JSON.stringify(settings));\\n')
+    f.write('    localStorage.setItem(\"uc_user_interaction\", \"true\");\\n')
+    f.write('  }\\n')
+    f.write('  localStorage.setItem(\"cart-data\", ' + json.dumps(cart_json) + ');\\n')
+    f.write('  window.__cartLoaded = JSON.parse(localStorage.getItem(\"cart-data\")).cart.cartItems.length;\\n')
+    f.write('})();\\n')
+
 print(f'''async (page) => {{
-  await page.goto('https://www.prismamarket.ee');
-  await page.waitForLoadState('networkidle');
-
-  const result = await page.evaluate((cartJson) => {{
-    // Bypass cookie consent
-    const raw = localStorage.getItem('uc_settings');
-    if (raw) {{
-      const settings = JSON.parse(raw);
-      const now = Date.now();
-      for (const service of settings.services) {{
-        const hasAccepted = service.history.some(h => h.action === 'onAcceptAllServices');
-        if (!hasAccepted) {{
-          service.history.push({{
-            action: 'onAcceptAllServices',
-            language: 'et',
-            status: true,
-            timestamp: now,
-            type: 'explicit',
-            versions: service.history[0].versions
-          }});
-        }}
-      }}
-      localStorage.setItem('uc_settings', JSON.stringify(settings));
-      localStorage.setItem('uc_user_interaction', 'true');
-    }}
-
-    // Write cart data
-    localStorage.setItem('cart-data', cartJson);
-    const written = JSON.parse(localStorage.getItem('cart-data'));
-    return {{ success: true, itemCount: written.cart.cartItems.length }};
-  }}, {json.dumps(cart_json)});
-
-  // Navigate to cart summary
-  await page.goto('https://www.prismamarket.ee/kokkuvote');
-  await page.waitForLoadState('networkidle');
-
-  return result;
+  await page.goto('https://www.prismamarket.ee', {{ waitUntil: 'domcontentloaded' }});
+  await page.addScriptTag({{ path: '{loader_file}' }});
+  const itemCount = await page.evaluate(() => window.__cartLoaded);
+  await page.goto('https://www.prismamarket.ee/kokkuvote', {{ waitUntil: 'load' }});
+  return {{ success: true, itemCount }};
 }};''')
 " "$STORE_ID" "$API_URL" "$@")
 

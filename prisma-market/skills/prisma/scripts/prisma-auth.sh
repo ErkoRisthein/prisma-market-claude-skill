@@ -56,8 +56,7 @@ case "$ACTION" in
 
     cat <<PLAYWRIGHT
 async (page) => {
-  await page.goto('https://www.prismamarket.ee');
-  await page.waitForLoadState('networkidle');
+  await page.goto('https://www.prismamarket.ee', { waitUntil: 'domcontentloaded' });
 
   // Check if already logged in
   const existingToken = await page.evaluate(() => {
@@ -101,7 +100,7 @@ PLAYWRIGHT
 async (page) => {
   // Wait for redirect back to prismamarket.ee (up to 2 minutes for user to confirm)
   await page.waitForURL('https://www.prismamarket.ee/**', { timeout: 120000 });
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
 
   // Extract token
   const token = await page.evaluate(() => {
