@@ -43,25 +43,30 @@ for p in products:
     nutrient_block = nutrient_groups[0] if nutrient_groups else {}
     nutrient_list = nutrient_block.get('nutrients') or []
 
-    results.append({
-        'name': p['name'],
-        'ean': p['ean'],
-        'price': p['price'],
-        'comparisonPrice': p.get('comparisonPrice'),
-        'comparisonUnit': p.get('comparisonUnit'),
-        'brandName': p.get('brandName'),
-        'slug': p.get('slug'),
-        'frozen': p.get('frozen', False),
-        'approxPrice': p.get('approxPrice', False),
-        'mainCategoryName': category,
-        'url': 'https://www.prismamarket.ee/toode/' + str(p.get('slug','')) + '/' + p['ean'],
-        'countryOfOrigin': country_name.get('et'),
-        'ingredientStatement': p.get('ingredientStatement'),
-        'nutrients': {
-            'referenceQuantity': nutrient_block.get('referenceQuantity'),
-            'values': [{'name': n['name'], 'value': n['value']} for n in nutrient_list]
-        } if nutrient_list else None
-    })
+    comp = p.get('comparisonPrice')
+    comp_unit = p.get('comparisonUnit')
+
+    r = {'name': p['name'], 'ean': p['ean'], 'price': p['price']}
+    if comp and comp_unit:
+        r['comparisonPrice'] = str(comp) + ' €/' + comp_unit
+    if p.get('brandName'):
+        r['brandName'] = p['brandName']
+    if p.get('frozen'):
+        r['frozen'] = True
+    if p.get('approxPrice'):
+        r['approxPrice'] = True
+    if category:
+        r['category'] = category
+    r['url'] = 'https://www.prismamarket.ee/toode/' + str(p.get('slug','')) + '/' + p['ean']
+    if country_name.get('et'):
+        r['countryOfOrigin'] = country_name['et']
+    if p.get('ingredientStatement'):
+        r['ingredients'] = p['ingredientStatement']
+    if nutrient_list:
+        ref = nutrient_block.get('referenceQuantity')
+        nuts = {n['name']: n['value'] for n in nutrient_list}
+        r['nutrients'] = ('per ' + ref + ': ' if ref else '') + ', '.join(k + ' ' + v for k, v in nuts.items())
+    results.append(r)
 
 print(json.dumps(results, indent=2, ensure_ascii=False))
 " "$RESPONSE"

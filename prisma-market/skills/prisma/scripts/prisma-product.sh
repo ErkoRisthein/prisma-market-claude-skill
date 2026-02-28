@@ -35,25 +35,29 @@ nutrient_groups = (product.get('productDetails') or {}).get('nutrients') or []
 nutrient_block = nutrient_groups[0] if nutrient_groups else {}
 nutrient_list = nutrient_block.get('nutrients') or []
 
-result = {
-    'name': product['name'],
-    'ean': product['ean'],
-    'price': product['price'],
-    'comparisonPrice': product.get('comparisonPrice'),
-    'comparisonUnit': product.get('comparisonUnit'),
-    'brandName': product.get('brandName'),
-    'slug': product.get('slug'),
-    'frozen': product.get('frozen', False),
-    'approxPrice': product.get('approxPrice', False),
-    'mainCategoryName': category,
-    'url': 'https://www.prismamarket.ee/toode/' + str(product.get('slug','')) + '/' + product['ean'],
-    'countryOfOrigin': country_name.get('et'),
-    'ingredientStatement': product.get('ingredientStatement'),
-    'nutrients': {
-        'referenceQuantity': nutrient_block.get('referenceQuantity'),
-        'values': [{'name': n['name'], 'value': n['value']} for n in nutrient_list]
-    } if nutrient_list else None
-}
+comp = product.get('comparisonPrice')
+comp_unit = product.get('comparisonUnit')
+
+result = {'name': product['name'], 'ean': product['ean'], 'price': product['price']}
+if comp and comp_unit:
+    result['comparisonPrice'] = str(comp) + ' €/' + comp_unit
+if product.get('brandName'):
+    result['brandName'] = product['brandName']
+if product.get('frozen'):
+    result['frozen'] = True
+if product.get('approxPrice'):
+    result['approxPrice'] = True
+if category:
+    result['category'] = category
+result['url'] = 'https://www.prismamarket.ee/toode/' + str(product.get('slug','')) + '/' + product['ean']
+if country_name.get('et'):
+    result['countryOfOrigin'] = country_name['et']
+if product.get('ingredientStatement'):
+    result['ingredients'] = product['ingredientStatement']
+if nutrient_list:
+    ref = nutrient_block.get('referenceQuantity')
+    nuts = {n['name']: n['value'] for n in nutrient_list}
+    result['nutrients'] = ('per ' + ref + ': ' if ref else '') + ', '.join(k + ' ' + v for k, v in nuts.items())
 
 print(json.dumps(result, indent=2, ensure_ascii=False))
 " "$RESPONSE"
