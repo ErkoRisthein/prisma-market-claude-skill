@@ -1,12 +1,13 @@
-# Prisma Market Skill
+# Prisma Market Plugin
 
-This repo contains a Claude Code skill for grocery shopping at Prisma Market (prismamarket.ee).
+Claude Code plugin for grocery shopping at Prisma Market (prismamarket.ee).
 
-## Architecture
+## Structure
 
-- **API scripts** (`skills/prisma/scripts/`) — bash + curl + python3 wrappers around Prisma's GraphQL API at `https://graphql-api.prismamarket.ee`
-- **Cart population** — via Playwright MCP: write cart items to `localStorage('cart-data')` on prismamarket.ee, then navigate to `/kokkuvote`
-- **Skill definition** (`skills/prisma/SKILL.md`) — describes the workflow and allowed tools for Claude Code
+- **Marketplace manifest** (`.claude-plugin/marketplace.json`) — lists the plugin for `claude plugin marketplace add`
+- **Plugin** (`prisma-market/`) — the installable plugin
+- **Skill** (`prisma-market/skills/prisma/SKILL.md`) — describes the workflow and tools
+- **API scripts** (`prisma-market/skills/prisma/scripts/`) — bash + curl + python3 wrappers around Prisma's GraphQL API
 
 ## Key technical details
 
@@ -14,3 +15,4 @@ This repo contains a Claude Code skill for grocery shopping at Prisma Market (pr
 - Cart is client-side only — stored in `localStorage('cart-data')` as `ClientCartItem` objects
 - Cookie consent (Usercentrics) is bypassed by modifying `uc_user_interaction` and `uc_settings` in localStorage
 - Default store: Kristiine Prisma (`542860184`)
+- Favorites API uses Apollo persisted queries (sha256 hashes), requires JWT auth

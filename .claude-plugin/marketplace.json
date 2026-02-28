@@ -1,0 +1,13 @@
+{
+  "name": "prisma-market-marketplace",
+  "owner": {
+    "name": "ErkoRisthein"
+  },
+  "plugins": [
+    {
+      "name": "prisma-market",
+      "source": "./prisma-market",
+      "description": "Shop for groceries at Prisma Market (prismamarket.ee) via Claude Code"
+    }
+  ]
+}

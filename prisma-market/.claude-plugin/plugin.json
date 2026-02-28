@@ -1,0 +1,9 @@
+{
+  "name": "prisma-market",
+  "description": "Shop for groceries at Prisma Market (prismamarket.ee) via Claude Code",
+  "version": "1.0.0",
+  "author": {
+    "name": "Erko Risthein"
+  },
+  "repository": "https://github.com/ErkoRisthein/prisma-market-claude-skill"
+}

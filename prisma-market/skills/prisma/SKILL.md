@@ -4,20 +4,21 @@ description: >
   Grocery shopping at Prisma Market (prismamarket.ee). Use when the user wants to search for products,
   build a shopping cart, buy groceries, or manage favorites at Prisma. Supports product search, price comparison,
   cart validation, populating the browser cart for checkout, and managing favorites (add/remove/list).
+allowed-tools: Bash(*prisma-*.sh*)
 ---
 
 # Prisma Market Grocery Shopping
 
 Help the user search for groceries at Prisma Market and populate a shopping cart in the browser.
 
+All scripts are in the `scripts/` directory relative to this file.
+
 ## Workflow
 
 ### 1. Search for products
 
-Use the search script to find products:
-
 ```bash
-bash skills/prisma/scripts/prisma-search.sh "<search term>" [limit] [storeId]
+prisma-search.sh "<search term>" [limit] [storeId]
 ```
 
 - Default limit: 10, store from `.env` or arg
@@ -27,16 +28,14 @@ Present results as a clear table with name, price, and comparison price so the u
 
 ### 2. Get product details
 
-For detailed info on a specific product:
-
 ```bash
-bash skills/prisma/scripts/prisma-product.sh <ean>
+prisma-product.sh <ean>
 ```
 
 ### 3. List available stores
 
 ```bash
-bash skills/prisma/scripts/prisma-stores.sh
+prisma-stores.sh
 ```
 
 ### 4. Validate cart
@@ -44,7 +43,7 @@ bash skills/prisma/scripts/prisma-stores.sh
 Before populating the browser cart, validate availability and get current prices:
 
 ```bash
-bash skills/prisma/scripts/prisma-validate-cart.sh <storeId> <ean1:qty1> [ean2:qty2] ...
+prisma-validate-cart.sh <storeId> <ean1:qty1> [ean2:qty2] ...
 ```
 
 Returns availability, current/campaign prices, and estimated total.
@@ -54,7 +53,7 @@ Returns availability, current/campaign prices, and estimated total.
 Once the user confirms the items, generate and run Playwright code to populate the cart:
 
 ```bash
-bash skills/prisma/scripts/prisma-cart.sh populate [storeId] <ean1:qty1> [ean2:qty2] ...
+prisma-cart.sh populate [storeId] <ean1:qty1> [ean2:qty2] ...
 ```
 
 - Fetches product details for all EANs, builds `ClientCartItem` objects, and outputs Playwright code
@@ -65,7 +64,7 @@ Leave the browser open for the user to review and proceed to checkout.
 
 ### 6. Authenticate
 
-Authentication credentials and tokens are stored in `skills/prisma/.env` (gitignored):
+Authentication credentials and tokens are stored in `.env` next to this skill (gitignored):
 
 ```env
 PRISMA_STORE_ID=542860184          # default store (Kristiine Prisma)
@@ -90,22 +89,22 @@ PRISMA_TOKEN=<jwt>                 # set automatically after login
 Example:
 ```bash
 # Step 1: generate login code and run via browser_run_code
-bash skills/prisma/scripts/prisma-auth.sh login
+prisma-auth.sh login
 # → copy output to browser_run_code, returns verification code
 
 # Step 2: show code to user, then wait for confirmation
-bash skills/prisma/scripts/prisma-auth.sh login-complete
+prisma-auth.sh login-complete
 # → copy output to browser_run_code, returns token
 
 # Step 3: save the token
-bash skills/prisma/scripts/prisma-auth.sh set <token>
+prisma-auth.sh set <token>
 ```
 
 **Other auth commands**:
 ```bash
-bash skills/prisma/scripts/prisma-auth.sh check    # check token validity
-bash skills/prisma/scripts/prisma-auth.sh decode    # show token payload
-bash skills/prisma/scripts/prisma-auth.sh clear     # remove token from .env
+prisma-auth.sh check    # check token validity
+prisma-auth.sh decode   # show token payload
+prisma-auth.sh clear    # remove token from .env
 ```
 
 ### 7. Manage favorites
@@ -114,13 +113,13 @@ Favorites require authentication (see step 6).
 
 ```bash
 # List all favorites (returns array of EANs)
-bash skills/prisma/scripts/prisma-favorite.sh list
+prisma-favorite.sh list
 
 # Add a product to favorites by EAN
-bash skills/prisma/scripts/prisma-favorite.sh add <ean>
+prisma-favorite.sh add <ean>
 
 # Remove a product from favorites by EAN
-bash skills/prisma/scripts/prisma-favorite.sh remove <ean>
+prisma-favorite.sh remove <ean>
 ```
 
 ## Conversational guidelines

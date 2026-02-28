@@ -2,9 +2,8 @@
 .idea/
 *.iml
 
-# Claude Code (track settings.json, ignore the rest)
-.claude/*
-!.claude/settings.json
+# Claude Code local settings
+.claude/
 
 # Playwright MCP screenshots
 .playwright-mcp/
@@ -15,5 +14,5 @@
 # Research snapshots
 snapshot*.md
 
-# Environment files
+# Environment files (user credentials)
 .env

@@ -4,9 +4,23 @@ Shop for groceries at [Prisma Market](https://www.prismamarket.ee) via Claude Co
 
 ## Install
 
-```bash
-claude skill add --from https://github.com/ErkoRisthein/prisma-market-claude-skill
 ```
+/plugin marketplace add ErkoRisthein/prisma-market-claude-skill
+/plugin install prisma-market
+```
+
+## Setup
+
+Create a `.env` file in the plugin's skill directory with your preferences:
+
+```env
+PRISMA_STORE_ID=542860184          # default store (Kristiine Prisma)
+PRISMA_AUTH_METHOD=smart-id        # smart-id | mobile-id | id-card
+PRISMA_PERSONAL_CODE=<isikukood>   # required for authentication
+PRISMA_PHONE=<phone>               # required only for mobile-id
+```
+
+To find the `.env` location after install, ask Claude: "set up Prisma config".
 
 ## Usage
 
@@ -27,3 +41,10 @@ claude skill add --from https://github.com/ErkoRisthein/prisma-market-claude-ski
 > /prisma I have 20 euros. Fill my cart with as much protein as possible — best price per kilo.
 
 > /prisma Compare all the cheddar cheeses and pick the best value per kilo.
+
+## Requirements
+
+- [Playwright plugin](https://github.com/anthropics/claude-plugins-official) — needed for cart population and authentication
+  ```
+  /plugin install playwright@claude-plugins-official
+  ```
