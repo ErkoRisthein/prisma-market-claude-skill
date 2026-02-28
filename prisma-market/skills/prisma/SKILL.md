@@ -126,7 +126,13 @@ prisma-favorite.sh remove <ean>
 
 - When the user asks to buy something, search for it first and present options
 - Always show prices and comparison prices (price per kg/L) to help the user choose
-- Confirm items and quantities before populating the cart
 - If a product search returns many results, help the user narrow down
-- Optionally use `prisma-validate-cart.sh` to check availability before populating the cart
 - Default store is configured in `.env` (`PRISMA_STORE_ID`) — ask the user if they want a different store
+
+### Cart safety rules
+
+- **Always validate before populating**: Run `prisma-validate-cart.sh` before every `prisma-cart.sh populate` — never skip this step
+- **Confirm with user**: Show the full item list with prices and estimated total, and get explicit confirmation before populating the browser cart
+- **Cart is replace-only**: `prisma-cart.sh populate` overwrites the entire cart. If the user wants to add items to an existing cart, include all previous items in the new populate call
+- **No duplicate EANs**: If the same product appears twice, merge into a single entry with combined quantity
+- **Track cart state**: Keep track of what's been added during the conversation so you can include previous items when the user adds more
