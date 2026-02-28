@@ -12,7 +12,7 @@ TERM="${1:?Usage: prisma-search.sh <term> [limit] [storeId]}"
 LIMIT="${2:-10}"
 STORE_ID="${3:-${PRISMA_STORE_ID:-542860184}}"
 
-QUERY='{ store(id: "'"$STORE_ID"'") { products(queryString: "'"$TERM"'", from: 0, limit: '"$LIMIT"', order: desc, orderBy: score) { items { id ean name price comparisonPrice comparisonUnit brandName slug frozen approxPrice hierarchyPath { name } } } } }'
+QUERY='{ store(id: "'"$STORE_ID"'") { products(queryString: "'"$TERM"'", from: 0, limit: '"$LIMIT"', order: desc, orderBy: score) { items { id ean name price comparisonPrice comparisonUnit brandName slug frozen approxPrice hierarchyPath { name } ingredientStatement countryName { et } productDetails { nutrients { referenceQuantity nutrients { name value } } } } } } }'
 
 PAYLOAD=$(python3 -c "import json,sys; print(json.dumps({'query': sys.argv[1]}))" "$QUERY")
 
@@ -38,6 +38,11 @@ results = []
 for p in products:
     hierarchy = p.get('hierarchyPath') or []
     category = hierarchy[0]['name'] if hierarchy else ''
+    country_name = p.get('countryName') or {}
+    nutrient_groups = (p.get('productDetails') or {}).get('nutrients') or []
+    nutrient_block = nutrient_groups[0] if nutrient_groups else {}
+    nutrient_list = nutrient_block.get('nutrients') or []
+
     results.append({
         'name': p['name'],
         'ean': p['ean'],
@@ -49,7 +54,13 @@ for p in products:
         'frozen': p.get('frozen', False),
         'approxPrice': p.get('approxPrice', False),
         'mainCategoryName': category,
-        'url': 'https://www.prismamarket.ee/toode/' + str(p.get('slug','')) + '/' + p['ean']
+        'url': 'https://www.prismamarket.ee/toode/' + str(p.get('slug','')) + '/' + p['ean'],
+        'countryOfOrigin': country_name.get('et'),
+        'ingredientStatement': p.get('ingredientStatement'),
+        'nutrients': {
+            'referenceQuantity': nutrient_block.get('referenceQuantity'),
+            'values': [{'name': n['name'], 'value': n['value']} for n in nutrient_list]
+        } if nutrient_list else None
     })
 
 print(json.dumps(results, indent=2, ensure_ascii=False))

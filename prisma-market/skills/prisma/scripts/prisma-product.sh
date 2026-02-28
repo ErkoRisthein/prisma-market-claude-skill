@@ -6,7 +6,7 @@ set -euo pipefail
 
 EAN="${1:?Usage: prisma-product.sh <ean>}"
 
-QUERY='{ product(id: "'"$EAN"'") { id ean name price comparisonPrice comparisonUnit brandName slug frozen approxPrice hierarchyPath { name } } }'
+QUERY='{ product(id: "'"$EAN"'") { id ean name price comparisonPrice comparisonUnit brandName slug frozen approxPrice hierarchyPath { name } ingredientStatement countryName { et } productDetails { nutrients { referenceQuantity nutrients { name value } } } } }'
 
 PAYLOAD=$(python3 -c "import json,sys; print(json.dumps({'query': sys.argv[1]}))" "$QUERY")
 
@@ -30,6 +30,11 @@ if not product:
 hierarchy = product.get('hierarchyPath') or []
 category = hierarchy[0]['name'] if hierarchy else ''
 
+country_name = product.get('countryName') or {}
+nutrient_groups = (product.get('productDetails') or {}).get('nutrients') or []
+nutrient_block = nutrient_groups[0] if nutrient_groups else {}
+nutrient_list = nutrient_block.get('nutrients') or []
+
 result = {
     'name': product['name'],
     'ean': product['ean'],
@@ -41,7 +46,13 @@ result = {
     'frozen': product.get('frozen', False),
     'approxPrice': product.get('approxPrice', False),
     'mainCategoryName': category,
-    'url': 'https://www.prismamarket.ee/toode/' + str(product.get('slug','')) + '/' + product['ean']
+    'url': 'https://www.prismamarket.ee/toode/' + str(product.get('slug','')) + '/' + product['ean'],
+    'countryOfOrigin': country_name.get('et'),
+    'ingredientStatement': product.get('ingredientStatement'),
+    'nutrients': {
+        'referenceQuantity': nutrient_block.get('referenceQuantity'),
+        'values': [{'name': n['name'], 'value': n['value']} for n in nutrient_list]
+    } if nutrient_list else None
 }
 
 print(json.dumps(result, indent=2, ensure_ascii=False))
