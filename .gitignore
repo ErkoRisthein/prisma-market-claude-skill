@@ -2,8 +2,9 @@
 .idea/
 *.iml
 
-# Claude Code
-.claude/
+# Claude Code (track settings.json, ignore the rest)
+.claude/*
+!.claude/settings.json
 
 # Playwright MCP screenshots
 .playwright-mcp/
