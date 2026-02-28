@@ -1,11 +1,20 @@
 #!/usr/bin/env bash
 # Validate cart items at Prisma Market (check availability + prices)
-# Usage: prisma-validate-cart.sh <storeId> <ean1:qty1> [ean2:qty2] ...
+# Usage: prisma-validate-cart.sh [storeId] <ean1:qty1> [ean2:qty2] ...
 
 set -euo pipefail
 
-STORE_ID="${1:?Usage: prisma-validate-cart.sh <storeId> <ean1:qty1> [ean2:qty2] ...}"
-shift
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ENV_FILE="$SCRIPT_DIR/../.env"
+[ -f "$ENV_FILE" ] && source "$ENV_FILE"
+
+# Check if first arg looks like a store ID (all digits, no colon) or an ean:qty pair
+if [[ "${1:-}" =~ ^[0-9]+$ ]] && [[ ! "${1:-}" =~ : ]]; then
+  STORE_ID="$1"
+  shift
+else
+  STORE_ID="${PRISMA_STORE_ID:-542860184}"
+fi
 
 if [ $# -eq 0 ]; then
   echo "Error: At least one ean:quantity pair required" >&2

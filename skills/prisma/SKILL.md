@@ -2,8 +2,8 @@
 name: prisma
 description: >
   Grocery shopping at Prisma Market (prismamarket.ee). Use when the user wants to search for products,
-  build a shopping cart, or buy groceries at Prisma. Supports product search, price comparison,
-  cart validation, and populating the browser cart for checkout.
+  build a shopping cart, buy groceries, or manage favorites at Prisma. Supports product search, price comparison,
+  cart validation, populating the browser cart for checkout, and managing favorites (add/remove/list).
 ---
 
 # Prisma Market Grocery Shopping
@@ -20,7 +20,7 @@ Use the search script to find products:
 bash skills/prisma/scripts/prisma-search.sh "<search term>" [limit] [storeId]
 ```
 
-- Default limit: 10, default store: 542860184 (Kristiine Prisma)
+- Default limit: 10, store from `.env` or arg
 - Returns: name, EAN, price, comparison price/unit, category, product URL
 
 Present results as a clear table with name, price, and comparison price so the user can choose.
@@ -51,103 +51,77 @@ Returns availability, current/campaign prices, and estimated total.
 
 ### 5. Populate cart in browser
 
-Once the user confirms the items, use Playwright to populate the cart via localStorage injection.
+Once the user confirms the items, generate and run Playwright code to populate the cart:
 
-**Step 1**: Navigate to prismamarket.ee to initialize localStorage:
-
-```
-browser_navigate: https://www.prismamarket.ee
+```bash
+bash skills/prisma/scripts/prisma-cart.sh populate [storeId] <ean1:qty1> [ean2:qty2] ...
 ```
 
-Wait for the page to load (Usercentrics will create `uc_settings` in localStorage).
+- Fetches product details for all EANs, builds `ClientCartItem` objects, and outputs Playwright code
+- Prints a cart summary (items, prices, total) to stderr
+- The Playwright code navigates to prismamarket.ee, bypasses cookie consent, writes cart data to `localStorage`, and navigates to `/kokkuvote`
+- Run the output via `browser_run_code` — returns `{ success: true, itemCount: N }`
+Leave the browser open for the user to review and proceed to checkout.
 
-**Step 2**: Use `browser_evaluate` to bypass cookie consent and write cart data in a single call.
+### 6. Authenticate
 
-Build the JavaScript function using the cart items. Each item needs these fields mapped from the search API:
+Authentication credentials and tokens are stored in `skills/prisma/.env` (gitignored):
 
-| Search field | Cart field | Notes |
-|---|---|---|
-| `ean` | `id`, `ean` | Same value for both |
-| `name` | `name` | Direct copy |
-| `price` | `price`, `regularPrice` | Same value (unless campaign) |
-| `comparisonPrice` | `comparisonPrice` | Direct copy |
-| `comparisonUnit` | `comparisonUnit` | Direct copy |
-| `frozen` | `frozen` | Direct copy |
-| `approxPrice` | `approxPrice` | Direct copy |
-| `mainCategoryName` | `mainCategoryName` | From `hierarchyPath[0].name` |
-| *(user input)* | `itemCount` | Quantity |
-
-All other `ClientCartItem` fields use these defaults:
-```
-__typename: "ClientCartItem"
-basicQuantityUnit: "KPL"
-inStoreSelection: true
-priceUnit: "KPL"
-quantityMultiplier: 1
-replace: true
-countryName: { et: null, __typename: "CountryName" }
-productType: "PRODUCT"
-campaignPrice: null
-lowest30DayPrice: null
-campaignPriceValidUntil: null
-additionalInfo: ""
-isAgeLimitedByAlcohol: false
-packagingLabelCodes: []
-isForceSalesByCount: false
+```env
+PRISMA_STORE_ID=542860184          # default store (Kristiine Prisma)
+PRISMA_AUTH_METHOD=smart-id        # smart-id | mobile-id | id-card
+PRISMA_PERSONAL_CODE=<isikukood>   # required for all methods
+PRISMA_PHONE=<phone>               # required only for mobile-id
+PRISMA_TOKEN=<jwt>                 # set automatically after login
 ```
 
-The `browser_evaluate` function must:
-1. Parse `uc_settings` from localStorage
-2. Add `onAcceptAllServices` history entry to each service (if not already present)
-3. Set `uc_user_interaction` to `"true"`
-4. Write `cart-data` to localStorage with the cart items wrapped in the correct structure
+**Check if already authenticated**: Run `prisma-auth.sh check`. If valid, skip login.
 
-Example `browser_evaluate` JavaScript:
-```javascript
-() => {
-  // Bypass cookie consent
-  const settings = JSON.parse(localStorage.getItem('uc_settings'));
-  const now = Date.now();
-  for (const service of settings.services) {
-    const hasAccepted = service.history.some(h => h.action === 'onAcceptAllServices');
-    if (!hasAccepted) {
-      service.history.push({
-        action: 'onAcceptAllServices',
-        language: 'et',
-        status: true,
-        timestamp: now,
-        type: 'explicit',
-        versions: service.history[0].versions
-      });
-    }
-  }
-  localStorage.setItem('uc_settings', JSON.stringify(settings));
-  localStorage.setItem('uc_user_interaction', 'true');
+**Automated login flow** (when token is missing or expired):
 
-  // Write cart data
-  const cartData = {
-    cacheVersion: "1.2.17",
-    cart: {
-      cartItems: [
-        // ... build ClientCartItem objects from the products ...
-      ]
-    },
-    orderEditActive: null
-  };
-  localStorage.setItem('cart-data', JSON.stringify(cartData));
-  return { success: true, itemCount: cartData.cart.cartItems.length };
-}
+1. Run `prisma-auth.sh login` to generate Playwright code, then execute it via `browser_run_code`:
+   - The script reads credentials from `.env` and generates a Playwright snippet that navigates to prismamarket.ee, checks for existing session, clicks through the login flow, fills the form, and submits
+   - Returns `{ status: 'already_logged_in', token }` if session exists, or `{ status: 'verification_needed', code }` with the Smart-ID/Mobiil-ID verification code
+2. Show the verification code to the user so they can confirm on their device
+3. Run `prisma-auth.sh login-complete` via `browser_run_code` to wait for the redirect and extract the token
+   - Returns `{ status: 'success', token }`
+4. Save the token: `prisma-auth.sh set <token>`
+
+Example:
+```bash
+# Step 1: generate login code and run via browser_run_code
+bash skills/prisma/scripts/prisma-auth.sh login
+# → copy output to browser_run_code, returns verification code
+
+# Step 2: show code to user, then wait for confirmation
+bash skills/prisma/scripts/prisma-auth.sh login-complete
+# → copy output to browser_run_code, returns token
+
+# Step 3: save the token
+bash skills/prisma/scripts/prisma-auth.sh set <token>
 ```
 
-**Step 3**: Navigate to the cart summary page:
-
+**Other auth commands**:
+```bash
+bash skills/prisma/scripts/prisma-auth.sh check    # check token validity
+bash skills/prisma/scripts/prisma-auth.sh decode    # show token payload
+bash skills/prisma/scripts/prisma-auth.sh clear     # remove token from .env
 ```
-browser_navigate: https://www.prismamarket.ee/kokkuvote
+
+### 7. Manage favorites
+
+Favorites require authentication (see step 6).
+
+```bash
+# List all favorites (returns array of EANs)
+bash skills/prisma/scripts/prisma-favorite.sh list
+
+# Add a product to favorites by EAN
+bash skills/prisma/scripts/prisma-favorite.sh add <ean>
+
+# Remove a product from favorites by EAN
+bash skills/prisma/scripts/prisma-favorite.sh remove <ean>
 ```
-
-The app reads `cart-data` from localStorage and displays all items with correct prices and totals. No cookie banner appears.
-
-**Step 4**: Leave the browser open for the user to review and proceed to checkout.
 
 ## Conversational guidelines
 
@@ -155,5 +129,5 @@ The app reads `cart-data` from localStorage and displays all items with correct 
 - Always show prices and comparison prices (price per kg/L) to help the user choose
 - Confirm items and quantities before populating the cart
 - If a product search returns many results, help the user narrow down
-- Use `prisma-validate-cart.sh` before populating the browser to catch availability issues
-- Default store is Kristiine Prisma (542860184) — ask the user if they want a different store
+- Optionally use `prisma-validate-cart.sh` to check availability before populating the cart
+- Default store is configured in `.env` (`PRISMA_STORE_ID`) — ask the user if they want a different store

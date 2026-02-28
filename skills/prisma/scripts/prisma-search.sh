@@ -4,9 +4,13 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ENV_FILE="$SCRIPT_DIR/../.env"
+[ -f "$ENV_FILE" ] && source "$ENV_FILE"
+
 TERM="${1:?Usage: prisma-search.sh <term> [limit] [storeId]}"
 LIMIT="${2:-10}"
-STORE_ID="${3:-542860184}"
+STORE_ID="${3:-${PRISMA_STORE_ID:-542860184}}"
 
 QUERY='{ store(id: "'"$STORE_ID"'") { products(queryString: "'"$TERM"'", from: 0, limit: '"$LIMIT"', order: desc, orderBy: score) { items { id ean name price comparisonPrice comparisonUnit brandName slug frozen approxPrice hierarchyPath { name } } } } }'
 
