@@ -1,0 +1,15 @@
+# IDE
+.idea/
+*.iml
+
+# Claude Code
+.claude/
+
+# Playwright MCP screenshots
+.playwright-mcp/
+
+# OS
+.DS_Store
+
+# Research snapshots
+snapshot*.md
