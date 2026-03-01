@@ -2,14 +2,14 @@
 name: prisma
 description: >
   Grocery shopping at Prisma Market (prismamarket.ee). Use when the user wants to search for products,
-  build a shopping cart, buy groceries, or manage favorites at Prisma. Supports product search, price comparison,
-  cart validation, populating the browser cart for checkout, and managing favorites (add/remove/list).
+  build a shopping cart, buy groceries, check out, or manage favorites at Prisma. Supports product search,
+  price comparison, cart validation, direct API ordering, and managing favorites (add/remove/list).
 allowed-tools: Bash(*prisma-*.sh*)
 ---
 
 # Prisma Market Grocery Shopping
 
-Help the user search for groceries at Prisma Market and populate a shopping cart in the browser.
+Help the user search for groceries at Prisma Market and order via the API.
 
 All scripts are in the `scripts/` directory relative to this file.
 
@@ -40,29 +40,15 @@ prisma-stores.sh
 
 ### 4. Validate cart
 
-Before populating the browser cart, validate availability and get current prices:
+Before ordering, validate availability and get current prices:
 
 ```bash
-prisma-validate-cart.sh <storeId> <ean1:qty1> [ean2:qty2] ...
+prisma-validate-cart.sh [storeId] <ean1:qty1> [ean2:qty2] ...
 ```
 
 Returns availability, current/campaign prices, and estimated total.
 
-### 5. Populate cart in browser
-
-Once the user confirms the items, generate and run Playwright code to populate the cart:
-
-```bash
-prisma-cart.sh populate [storeId] <ean1:qty1> [ean2:qty2] ...
-```
-
-- Fetches product details for all EANs, builds `ClientCartItem` objects, and outputs Playwright code
-- Prints a cart summary (items, prices, total) to stderr
-- The Playwright code navigates to prismamarket.ee, bypasses cookie consent, writes cart data to `localStorage`, and navigates to `/kokkuvote`
-- Run the output via `browser_run_code` — returns `{ success: true, itemCount: N }`
-Leave the browser open for the user to review and proceed to checkout.
-
-### 6. Authenticate
+### 5. Authenticate
 
 Authentication credentials and tokens are stored in `.env` in the project root (gitignored):
 
@@ -86,20 +72,6 @@ PRISMA_TOKEN=<jwt>                 # set automatically after login
    - Returns `{ status: 'success', token }`
 4. Save the token: `prisma-auth.sh set <token>`
 
-Example:
-```bash
-# Step 1: generate login code and run via browser_run_code
-prisma-auth.sh login
-# → copy output to browser_run_code, returns verification code
-
-# Step 2: show code to user, then wait for confirmation
-prisma-auth.sh login-complete
-# → copy output to browser_run_code, returns token
-
-# Step 3: save the token
-prisma-auth.sh set <token>
-```
-
 **Other auth commands**:
 ```bash
 prisma-auth.sh check    # check token validity
@@ -107,9 +79,115 @@ prisma-auth.sh decode   # show token payload
 prisma-auth.sh clear    # remove token from .env
 ```
 
-### 7. Manage favorites
+### 6. Checkout via API (home delivery)
 
-Favorites require authentication (see step 6).
+This is the **primary ordering method** — pure API, no browser needed.
+
+#### 6a. List delivery slots
+
+```bash
+# Show available dates
+prisma-checkout.sh slots
+
+# Show time slots for a specific date
+prisma-checkout.sh slots <YYYY-MM-DD> [postalCode]
+```
+
+#### 6b. Reserve a delivery slot
+
+```bash
+prisma-checkout.sh reserve <slotId>
+```
+
+Returns `{ reservationId, expiresAt, slotId }`. Reservation expires after 15 minutes.
+
+#### 6c. Place order
+
+```bash
+# With explicit reservation and slot:
+prisma-checkout.sh order <reservationId> <slotId> <ean1:qty1> [ean2:qty2] ...
+
+# With env defaults (PRISMA_RESERVATION_ID, PRISMA_SLOT_ID):
+prisma-checkout.sh order <ean1:qty1> [ean2:qty2] ...
+```
+
+- Cart items are sent directly in the API call — no browser cart needed
+- Uses `CARD_PAYMENT` payment method
+- Delivery address, contact info read from `.env`
+- Returns full order details including orderNumber, orderStatus, cartItems with prices
+- Order is created with `paymentStatus: PENDING` — use the `pay` subcommand to complete payment
+
+#### 6d. List saved payment cards
+
+```bash
+prisma-checkout.sh cards
+```
+
+Returns saved cards with id, type, masked number, expiry, and default status.
+
+#### 6e. Pay for an order with saved card
+
+```bash
+# Uses default saved card:
+prisma-checkout.sh pay <orderId>
+
+# With specific card:
+prisma-checkout.sh pay <orderId> <cardId>
+```
+
+- Outputs Playwright code — run it via `browser_run_code`
+- For saved cards, payment completes automatically (frictionless 3DS, no user interaction)
+- Returns `{ status: 'success', orderId, url }` on success
+
+**Full end-to-end flow**:
+```bash
+# 1. Validate items
+prisma-validate-cart.sh 2060673000002:1 4740012345678:2
+
+# 2. Check auth
+prisma-auth.sh check
+
+# 3. Find a delivery slot
+prisma-checkout.sh slots 2026-03-05
+
+# 4. Reserve it
+prisma-checkout.sh reserve "2026-03-05:uuid-here"
+
+# 5. Place order
+prisma-checkout.sh order "RESERVATION#uuid" "2026-03-05:uuid-here" 2060673000002:1 4740012345678:2
+
+# 6. Pay with saved card (run output via browser_run_code)
+prisma-checkout.sh pay "<orderId>"
+```
+
+Additional `.env` variables for checkout:
+```env
+PRISMA_FIRST_NAME=Jaan
+PRISMA_LAST_NAME=Tamm
+PRISMA_PHONE=+37255512345
+PRISMA_EMAIL=jaan.tamm@example.com
+PRISMA_DELIVERY_ADDRESS="Pärnu mnt 10, 10148 Tallinn"
+PRISMA_APARTMENT=42
+PRISMA_DRIVER_INFO="3. korrus"
+```
+
+### 7. Alternative: Populate browser cart only
+
+If the user prefers to review and checkout manually in the browser, use the cart-based flow:
+
+```bash
+prisma-cart.sh populate [storeId] <ean1:qty1> [ean2:qty2] ...
+```
+
+- Fetches product details for all EANs, builds `ClientCartItem` objects, and outputs Playwright code
+- Prints a cart summary (items, prices, total) to stderr
+- The Playwright code navigates to prismamarket.ee, bypasses cookie consent, writes cart data to `localStorage`, and navigates to `/kokkuvote`
+- Run the output via `browser_run_code` — returns `{ success: true, itemCount: N }`
+- Leave the browser open for the user to review and complete checkout manually
+
+### 8. Manage favorites
+
+Favorites require authentication (see step 5).
 
 ```bash
 # List all favorites (returns array of EANs)
@@ -122,9 +200,9 @@ prisma-favorite.sh add <ean>
 prisma-favorite.sh remove <ean>
 ```
 
-### 8. Order history
+### 9. Order history
 
-Order history requires authentication (see step 6).
+Order history requires authentication (see step 5).
 
 ```bash
 # List recent orders
@@ -145,11 +223,11 @@ Use order history to vary product selections — check recent orders and avoid r
 - Always show prices and comparison prices (price per kg/L) to help the user choose
 - If a product search returns many results, help the user narrow down
 - Default store is configured in `.env` (`PRISMA_STORE_ID`) — ask the user if they want a different store
+- **Prefer the API checkout flow** (step 6) over the browser cart flow (step 7) unless the user specifically asks to use the browser
 
-### Cart safety rules
+### Order safety rules
 
-- **Always validate before populating**: Run `prisma-validate-cart.sh` before every `prisma-cart.sh populate` — never skip this step
-- **Confirm with user**: Show the full item list with prices and estimated total, and get explicit confirmation before populating the browser cart
-- **Cart is replace-only**: `prisma-cart.sh populate` overwrites the entire cart. If the user wants to add items to an existing cart, include all previous items in the new populate call
+- **Always validate before ordering**: Run `prisma-validate-cart.sh` before every order — never skip this step
+- **Confirm with user**: Show the full item list with prices and estimated total, and get explicit confirmation before placing an order
 - **No duplicate EANs**: If the same product appears twice, merge into a single entry with combined quantity
 - **Track cart state**: Keep track of what's been added during the conversation so you can include previous items when the user adds more

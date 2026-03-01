@@ -50,6 +50,23 @@ case "$ACTION" in
 async (page) => {
   await page.goto('https://www.prismamarket.ee', { waitUntil: 'domcontentloaded' });
 
+  // Bypass Usercentrics cookie consent via localStorage
+  await page.evaluate(() => {
+    const raw = localStorage.getItem('uc_settings');
+    if (raw) {
+      const settings = JSON.parse(raw);
+      const now = Date.now();
+      settings.services.forEach(service => {
+        const hasAccepted = service.history.some(h => h.action === 'onAcceptAllServices');
+        if (!hasAccepted) {
+          service.history.push({ action: 'onAcceptAllServices', language: 'et', status: true, timestamp: now, type: 'explicit', versions: service.history[0].versions });
+        }
+      });
+      localStorage.setItem('uc_settings', JSON.stringify(settings));
+    }
+    localStorage.setItem('uc_user_interaction', 'true');
+  });
+
   // Check if already logged in
   const existingToken = await page.evaluate(() => {
     const raw = localStorage.getItem('client-data');
@@ -66,6 +83,11 @@ async (page) => {
 
   // Wait for login page
   await page.waitForURL(/login\\.prismamarket\\.ee/);
+
+  // Dismiss cookie consent overlay on login page if present
+  try {
+    await page.getByRole('button', { name: 'Nõustuge' }).click({ timeout: 3000 });
+  } catch (e) { /* not present */ }
 
   // Select auth method
   await page.getByRole('tab', { name: '$TAB_NAME' }).click();
@@ -93,6 +115,26 @@ async (page) => {
   // Wait for redirect back to prismamarket.ee (up to 2 minutes for user to confirm)
   await page.waitForURL('https://www.prismamarket.ee/**', { timeout: 120000 });
   await page.waitForLoadState('domcontentloaded');
+
+  // Bypass Usercentrics cookie consent via localStorage
+  await page.evaluate(() => {
+    const raw = localStorage.getItem('uc_settings');
+    if (raw) {
+      const settings = JSON.parse(raw);
+      const now = Date.now();
+      settings.services.forEach(service => {
+        const hasAccepted = service.history.some(h => h.action === 'onAcceptAllServices');
+        if (!hasAccepted) {
+          service.history.push({ action: 'onAcceptAllServices', language: 'et', status: true, timestamp: now, type: 'explicit', versions: service.history[0].versions });
+        }
+      });
+      localStorage.setItem('uc_settings', JSON.stringify(settings));
+      localStorage.setItem('uc_user_interaction', 'true');
+    }
+  });
+
+  // Wait for auth data to settle in localStorage
+  await page.waitForTimeout(2000);
 
   // Extract token
   const token = await page.evaluate(() => {
