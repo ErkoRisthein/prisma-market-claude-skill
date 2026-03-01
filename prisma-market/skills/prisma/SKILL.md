@@ -122,6 +122,23 @@ prisma-favorite.sh add <ean>
 prisma-favorite.sh remove <ean>
 ```
 
+### 8. Order history
+
+Order history requires authentication (see step 6).
+
+```bash
+# List recent orders
+prisma-orders.sh list [limit]
+
+# Get order details with cart items
+prisma-orders.sh detail <orderId>
+
+# Get just ean:qty pairs from an order (for re-ordering or exclusion)
+prisma-orders.sh items <orderId>
+```
+
+Use order history to vary product selections — check recent orders and avoid re-ordering the same items.
+
 ## Conversational guidelines
 
 - When the user asks to buy something, search for it first and present options

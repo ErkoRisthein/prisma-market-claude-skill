@@ -1,7 +1,7 @@
 {
   "name": "prisma-market",
   "description": "Shop for groceries at Prisma Market (prismamarket.ee) via Claude Code",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "author": {
     "name": "Erko Risthein"
   },

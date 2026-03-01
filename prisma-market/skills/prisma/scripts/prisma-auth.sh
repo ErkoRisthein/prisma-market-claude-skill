@@ -172,22 +172,35 @@ payload_b64 = parts[1]
 payload_b64 += '=' * (4 - len(payload_b64) % 4)
 payload = json.loads(base64.urlsafe_b64decode(payload_b64))
 
+now = int(time.time())
+
+# Check session expiry (sIdExp) first — session can expire before JWT
+sid_exp = payload.get('sIdExp')
+if sid_exp is not None:
+    sid_remaining = sid_exp - now
+    if sid_remaining <= 0:
+        print('SESSION_EXPIRED (session expired %d seconds ago)' % abs(sid_remaining))
+        sys.exit(1)
+
 exp = payload.get('exp')
 if exp is None:
     print('Warning: token has no exp claim')
     sys.exit(0)
 
-now = int(time.time())
 remaining = exp - now
 
 if remaining <= 0:
     print('EXPIRED (expired %d seconds ago)' % abs(remaining))
     sys.exit(1)
-elif remaining < 300:
-    print('EXPIRING SOON (%d seconds remaining)' % remaining)
+
+# Report the earliest expiry
+effective = min(remaining, sid_remaining) if sid_exp is not None else remaining
+
+if effective < 300:
+    print('EXPIRING SOON (%d seconds remaining)' % effective)
     sys.exit(0)
 else:
-    minutes = remaining // 60
+    minutes = effective // 60
     print('VALID (%d minutes remaining)' % minutes)
     sys.exit(0)
 " "$TOKEN"
