@@ -64,7 +64,7 @@ Leave the browser open for the user to review and proceed to checkout.
 
 ### 6. Authenticate
 
-Authentication credentials and tokens are stored in `.env` next to this skill (gitignored):
+Authentication credentials and tokens are stored in `.env` in the project root (gitignored):
 
 ```env
 PRISMA_STORE_ID=542860184          # default store (Kristiine Prisma)

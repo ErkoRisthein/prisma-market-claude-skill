@@ -9,15 +9,7 @@
 # PRISMA_TOKEN env var, or passed as the last argument.
 
 set -euo pipefail
-
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ENV_FILE="$SCRIPT_DIR/../.env"
-
-# Source .env if it exists and PRISMA_TOKEN not already set
-if [ -z "${PRISMA_TOKEN:-}" ] && [ -f "$ENV_FILE" ]; then
-  # shellcheck source=/dev/null
-  source "$ENV_FILE"
-fi
+source "$(dirname "$0")/_env.sh"
 
 ACTION="${1:?Usage: prisma-orders.sh <list|detail|items> [orderId|limit]}"
 

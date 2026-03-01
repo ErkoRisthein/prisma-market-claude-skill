@@ -4,9 +4,7 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ENV_FILE="$SCRIPT_DIR/../.env"
-[ -f "$ENV_FILE" ] && source "$ENV_FILE"
+source "$(dirname "$0")/_env.sh"
 
 # Check if first arg looks like a store ID (all digits, no colon) or an ean:qty pair
 if [[ "${1:-}" =~ ^[0-9]+$ ]] && [[ ! "${1:-}" =~ : ]]; then

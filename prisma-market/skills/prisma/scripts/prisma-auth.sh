@@ -8,19 +8,11 @@
 #   prisma-auth.sh decode            — show saved token payload (user info, expiry)
 #   prisma-auth.sh clear             — remove saved token
 #
-# Token is stored in skills/prisma/.env as PRISMA_TOKEN=... (gitignored).
-# All prisma scripts source this file automatically.
+# Token is stored in .env in the project root (gitignored).
+# All prisma scripts source this file automatically via _env.sh.
 
 set -euo pipefail
-
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ENV_FILE="$SCRIPT_DIR/../.env"
-
-# Source .env if it exists and PRISMA_TOKEN not already set
-if [ -z "${PRISMA_TOKEN:-}" ] && [ -f "$ENV_FILE" ]; then
-  # shellcheck source=/dev/null
-  source "$ENV_FILE"
-fi
+source "$(dirname "$0")/_env.sh"
 
 ACTION="${1:?Usage: prisma-auth.sh <login|login-complete|set|check|decode|clear> [token]}"
 

@@ -10,9 +10,7 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ENV_FILE="$SCRIPT_DIR/../.env"
-[ -f "$ENV_FILE" ] && source "$ENV_FILE"
+source "$(dirname "$0")/_env.sh"
 
 ACTION="${1:?Usage: prisma-cart.sh populate [storeId] <ean1:qty1> ...}"
 shift
