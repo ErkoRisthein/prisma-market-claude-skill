@@ -217,6 +217,29 @@ prisma-orders.sh items <orderId>
 
 Use order history to vary product selections — check recent orders and avoid re-ordering the same items.
 
+### 10. Edit a placed order
+
+Edit an existing order that hasn't been picked yet (before the modification deadline). Requires authentication.
+
+```bash
+# Show current order items
+prisma-edit-order.sh show <orderId>
+
+# Add items (or increase qty if already in order)
+prisma-edit-order.sh add <orderId> <ean:qty> [ean:qty...]
+
+# Remove items
+prisma-edit-order.sh remove <orderId> <ean> [ean...]
+
+# Set exact quantities (0 = remove)
+prisma-edit-order.sh set <orderId> <ean:qty> [ean:qty...]
+
+# Replace entire cart
+prisma-edit-order.sh replace <orderId> <ean:qty> [ean:qty...]
+```
+
+The order must be modifiable (`isModifiable: true`) — check the modification deadline on the order page. No re-payment is needed; the existing card authorization covers modifications.
+
 ## Conversational guidelines
 
 - When the user asks to buy something, search for it first and present options
