@@ -1,3 +1,4 @@
+
 # Prisma Market
 
 Shop for groceries at [Prisma Market](https://www.prismamarket.ee) via Claude Code.
@@ -11,16 +12,13 @@ Shop for groceries at [Prisma Market](https://www.prismamarket.ee) via Claude Co
 
 ## Setup
 
-Create a `.env` file in the plugin's skill directory with your preferences:
+Copy [`.env.example`](.env.example) to `.env` in your project root and fill in your values:
 
-```env
-PRISMA_STORE_ID=542860184          # default store (Kristiine Prisma)
-PRISMA_AUTH_METHOD=smart-id        # smart-id | mobile-id | id-card
-PRISMA_PERSONAL_CODE=<isikukood>   # required for authentication
-PRISMA_PHONE=<phone>               # required only for mobile-id
+```bash
+cp .env.example .env
 ```
 
-To find the `.env` location after install, ask Claude: "set up Prisma config".
+See `.env.example` for all available variables (store, authentication, delivery details).
 
 ## Usage
 
@@ -48,3 +46,24 @@ To find the `.env` location after install, ask Claude: "set up Prisma config".
   ```
   /plugin install playwright@claude-plugins-official
   ```
+
+## Permissions
+
+Add the following to your project's `.claude/settings.json` so Claude can run the scripts and browser automation without prompting:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(*prisma-*.sh*)",
+      "mcp__plugin_playwright_playwright__browser_run_code",
+      "mcp__plugin_playwright_playwright__browser_navigate",
+      "mcp__plugin_playwright_playwright__browser_snapshot",
+      "mcp__plugin_playwright_playwright__browser_click",
+      "mcp__plugin_playwright_playwright__browser_type",
+      "mcp__plugin_playwright_playwright__browser_fill_form",
+      "mcp__plugin_playwright_playwright__browser_take_screenshot"
+    ]
+  }
+}
+```
