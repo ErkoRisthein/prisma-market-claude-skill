@@ -32,6 +32,47 @@ Present results as a clear table with name, price, and comparison price so the u
 prisma-product.sh <ean>
 ```
 
+### 2a. View product image (verify packaging, appearance)
+
+```bash
+prisma-image.sh <ean1> [ean2] ...
+```
+
+Downloads the product image(s) from Prisma's CDN to `/tmp/prisma_images/<ean>.png` and prints the path(s). Use this when packaging type matters (e.g. baby food: pouch vs glass jar — same brand often makes both, with no clear indicator in the product name). After running, use the Read tool on the printed path(s) to view the image.
+
+Requires `dwebp` (`brew install webp`).
+
+### 2b. Browse the category tree (traversal)
+
+When keyword search misses items (different naming, brand-specific listings), traverse the catalog by category. Three steps:
+
+**Step 1 — list categories** (uses `Store.navigation` GraphQL field):
+
+```bash
+prisma-categories.sh                 # 24 top-level categories
+prisma-categories.sh <parent-slug>   # direct children of the given category
+prisma-categories.sh --tree          # full nested tree
+```
+
+The shipped tree has 3 levels (root → L1 → L2). Slugs match the URL path after `/tooted/`.
+
+**Step 2 — list items in a category**:
+
+```bash
+prisma-category.sh <slug> [limit] [from] [storeId]
+```
+
+- Returns `total` (full count), `items` for the requested page, plus `from`/`limit` echoed back
+- Max ~100 items per call; paginate with `from` to fetch the rest
+
+**Step 3 — see item details**:
+
+```bash
+prisma-product.sh <ean>
+```
+
+Use the traversal flow when keyword search returns weak hits and you suspect Prisma uses a different product name.
+
 ### 3. List available stores
 
 ```bash
@@ -116,6 +157,7 @@ prisma-checkout.sh order <ean1:qty1> [ean2:qty2] ...
 - Delivery address, contact info read from `.env`
 - Returns full order details including orderNumber, orderStatus, cartItems with prices
 - Order is created with `paymentStatus: PENDING` — use the `pay` subcommand to complete payment
+- **Substitution**: every item defaults to **`replace=False`** (no substitutes). To allow substitution on a specific item, append `:r` to the pair: `EAN:qty:r`. Use sparingly — many users have strict brand/dietary preferences and a swapped product can violate them silently.
 
 #### 6d. List saved payment cards
 
@@ -236,9 +278,14 @@ prisma-edit-order.sh set <orderId> <ean:qty> [ean:qty...]
 
 # Replace entire cart
 prisma-edit-order.sh replace <orderId> <ean:qty> [ean:qty...]
+
+# Change delivery slot (reserves new slot, then UpdateOrder)
+prisma-edit-order.sh slot <orderId> <newSlotId>
 ```
 
 The order must be modifiable (`isModifiable: true`) — check the modification deadline on the order page. No re-payment is needed; the existing card authorization covers modifications.
+
+To change the delivery slot, use `prisma-checkout.sh slots <YYYY-MM-DD>` to find the new `slotId`, then pass it to `prisma-edit-order.sh slot`. The command reserves the new slot and submits `UpdateOrder` with the new `deliverySlotId` + `reservationId` while keeping all cart items unchanged. The existing card authorization carries over — no re-payment.
 
 ## Conversational guidelines
 

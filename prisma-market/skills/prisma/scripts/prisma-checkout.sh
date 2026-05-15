@@ -231,16 +231,18 @@ driver_info = sys.argv[12]
 ean_qty_pairs = sys.argv[13:]
 
 # Build cart items — itemCount must be String per GraphQL schema
+# Format: EAN:qty (default replace=False) or EAN:qty:r (allow substitution)
 cart_items = []
 for pair in ean_qty_pairs:
     parts = pair.split(':')
-    if len(parts) != 2:
-        print(f'Error: Invalid format \"{pair}\". Use ean:quantity', file=sys.stderr)
+    if len(parts) not in (2, 3):
+        print(f'Error: Invalid format \"{pair}\". Use ean:quantity or ean:quantity:r', file=sys.stderr)
         sys.exit(1)
+    allow_replace = len(parts) == 3 and parts[2] == 'r'
     cart_items.append({
         'ean': parts[0],
         'itemCount': parts[1],
-        'replace': True
+        'replace': allow_replace
     })
 
 order_input = {

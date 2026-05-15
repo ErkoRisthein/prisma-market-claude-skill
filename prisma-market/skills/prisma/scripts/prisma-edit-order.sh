@@ -6,6 +6,8 @@
 #   prisma-edit-order.sh remove <orderId> <ean> [ean...]       — remove items
 #   prisma-edit-order.sh set <orderId> <ean:qty> [ean:qty...]  — set exact quantities (0 = remove)
 #   prisma-edit-order.sh replace <orderId> <ean:qty> [ean:qty...]  — replace entire cart
+#   prisma-edit-order.sh slot <orderId> <newSlotId>            — change delivery slot
+#                                                                (reserves new slot, then UpdateOrder)
 #
 # Reads from .env:
 #   PRISMA_TOKEN — JWT auth token (required)
@@ -13,7 +15,8 @@
 
 set -euo pipefail
 
-source "$(dirname "$0")/_env.sh"
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_SCRIPT_DIR/_env.sh"
 
 API="https://graphql-api.prismamarket.ee"
 STORE_ID="${PRISMA_STORE_ID:-542860184}"
@@ -91,27 +94,33 @@ print(json.dumps({
     -d @-
 }
 
-# Send UpdateOrder mutation via persisted query
+# Send UpdateOrder mutation. Sends the full GraphQL query text rather than
+# relying on Apollo Automatic Persisted Queries (the hash gets rotated by
+# Prisma occasionally and silently breaks edits). The query lives next to
+# this script — re-capture it via Playwright if the server schema changes.
 send_update() {
   local order_id="$1"
   local variables_json="$2"
+
+  local query_file="$_SCRIPT_DIR/update-order.graphql"
+  if [ ! -f "$query_file" ]; then
+    echo "Error: $query_file not found. Re-capture from a live Prisma UpdateOrder request." >&2
+    return 1
+  fi
 
   local payload
   payload=$(python3 -c "
 import json, sys
 
-variables = json.loads(sys.argv[1])
+with open(sys.argv[1]) as f:
+    query = f.read()
+variables = json.loads(sys.argv[2])
 print(json.dumps({
     'operationName': 'UpdateOrder',
-    'variables': variables,
-    'extensions': {
-        'persistedQuery': {
-            'version': 1,
-            'sha256Hash': 'd224ef7f7e05b3cc140c095de5e9fcf3dd01df1605eab75527b9522a81869e3a'
-        }
-    }
+    'query': query,
+    'variables': variables
 }))
-" "$variables_json")
+" "$query_file" "$variables_json")
 
   printf '%s' "$payload" | curl_auth -X POST "$API" \
     -H 'Content-Type: application/json' \
@@ -176,7 +185,7 @@ print(json.dumps(clean, indent=2, ensure_ascii=False))
 " "$response"
 }
 
-ACTION="${1:?Usage: prisma-edit-order.sh [show|add|remove|set|replace] <orderId> ...}"
+ACTION="${1:?Usage: prisma-edit-order.sh [show|add|remove|set|replace|slot] <orderId> ...}"
 shift
 
 case "$ACTION" in
@@ -248,14 +257,15 @@ order_id = sys.argv[2]
 packaging_ean = sys.argv[3]
 new_pairs = sys.argv[4:]
 
-# Parse new ean:qty pairs
+# Parse new ean:qty[:r] pairs
 additions = {}
 for pair in new_pairs:
     parts = pair.split(':')
-    if len(parts) != 2:
-        print(f'Error: Invalid format \"{pair}\". Use ean:quantity', file=sys.stderr)
+    if len(parts) not in (2, 3):
+        print(f'Error: Invalid format \"{pair}\". Use ean:quantity or ean:quantity:r', file=sys.stderr)
         sys.exit(1)
-    additions[parts[0]] = int(parts[1])
+    allow_replace = len(parts) == 3 and parts[2] == 'r'
+    additions[parts[0]] = (int(parts[1]), allow_replace)
 
 # Build cart items from existing order
 existing = {}
@@ -268,21 +278,23 @@ for item in order.get('cartItems', []):
         'basicQuantityUnit': item.get('basicQuantityUnit', 'KPL'),
         'ean': ean,
         'itemCount': str(item.get('itemCount', 1)),
-        'replace': item.get('replace', True),
+        'replace': item.get('replace', False),
     }
 
 # Add or increase quantities
-for ean, qty in additions.items():
+for ean, (qty, allow_replace) in additions.items():
     if ean in existing:
         current = int(existing[ean]['itemCount'])
         existing[ean]['itemCount'] = str(current + qty)
+        if allow_replace:
+            existing[ean]['replace'] = True
     else:
         existing[ean] = {
             'additionalInfo': '',
             'basicQuantityUnit': 'KPL',
             'ean': ean,
             'itemCount': str(qty),
-            'replace': True,
+            'replace': allow_replace,
         }
 
 cart_items = list(existing.values())
@@ -380,7 +392,7 @@ for item in order.get('cartItems', []):
         'basicQuantityUnit': item.get('basicQuantityUnit', 'KPL'),
         'ean': ean,
         'itemCount': str(item.get('itemCount', 1)),
-        'replace': item.get('replace', True),
+        'replace': item.get('replace', False),
     })
 
 not_found = remove_eans - removed
@@ -465,14 +477,15 @@ order_id = sys.argv[2]
 packaging_ean = sys.argv[3]
 set_pairs = sys.argv[4:]
 
-# Parse ean:qty pairs
+# Parse ean:qty[:r] pairs
 updates = {}
 for pair in set_pairs:
     parts = pair.split(':')
-    if len(parts) != 2:
-        print(f'Error: Invalid format \"{pair}\". Use ean:quantity', file=sys.stderr)
+    if len(parts) not in (2, 3):
+        print(f'Error: Invalid format \"{pair}\". Use ean:quantity or ean:quantity:r', file=sys.stderr)
         sys.exit(1)
-    updates[parts[0]] = int(parts[1])
+    allow_replace = len(parts) == 3 and parts[2] == 'r'
+    updates[parts[0]] = (int(parts[1]), allow_replace)
 
 # Build cart items from existing order, applying updates
 cart_items = []
@@ -483,7 +496,7 @@ for item in order.get('cartItems', []):
         continue
     if ean in updates:
         updated.add(ean)
-        qty = updates[ean]
+        qty, allow_replace = updates[ean]
         if qty <= 0:
             continue  # qty 0 = remove
         cart_items.append({
@@ -491,7 +504,7 @@ for item in order.get('cartItems', []):
             'basicQuantityUnit': item.get('basicQuantityUnit', 'KPL'),
             'ean': ean,
             'itemCount': str(qty),
-            'replace': item.get('replace', True),
+            'replace': allow_replace,
         })
     else:
         cart_items.append({
@@ -499,18 +512,18 @@ for item in order.get('cartItems', []):
             'basicQuantityUnit': item.get('basicQuantityUnit', 'KPL'),
             'ean': ean,
             'itemCount': str(item.get('itemCount', 1)),
-            'replace': item.get('replace', True),
+            'replace': item.get('replace', False),
         })
 
 # Add new items that weren't in the original order
-for ean, qty in updates.items():
+for ean, (qty, allow_replace) in updates.items():
     if ean not in updated and qty > 0:
         cart_items.append({
             'additionalInfo': '',
             'basicQuantityUnit': 'KPL',
             'ean': ean,
             'itemCount': str(qty),
-            'replace': True,
+            'replace': allow_replace,
         })
 
 # Append packaging item
@@ -591,22 +604,23 @@ order_id = sys.argv[2]
 packaging_ean = sys.argv[3]
 new_pairs = sys.argv[4:]
 
-# Build fresh cart from provided pairs only
+# Build fresh cart from provided pairs only — format: ean:qty[:r]
 cart_items = []
 for pair in new_pairs:
     parts = pair.split(':')
-    if len(parts) != 2:
-        print(f'Error: Invalid format \"{pair}\". Use ean:quantity', file=sys.stderr)
+    if len(parts) not in (2, 3):
+        print(f'Error: Invalid format \"{pair}\". Use ean:quantity or ean:quantity:r', file=sys.stderr)
         sys.exit(1)
     qty = int(parts[1])
     if qty <= 0:
         continue
+    allow_replace = len(parts) == 3 and parts[2] == 'r'
     cart_items.append({
         'additionalInfo': '',
         'basicQuantityUnit': 'KPL',
         'ean': parts[0],
         'itemCount': str(qty),
-        'replace': True,
+        'replace': allow_replace,
     })
 
 # Append packaging item
@@ -662,6 +676,128 @@ print(json.dumps(variables, ensure_ascii=False))
     parse_update_response "$RESPONSE"
     ;;
 
+  # ---- SLOT -------------------------------------------------
+  # Change the delivery slot on an already-placed order.
+  # Reserves the new slot, then submits UpdateOrder with the new
+  # deliverySlotId + reservationId, keeping all cart items unchanged.
+  # Usage: prisma-edit-order.sh slot <orderId> <newSlotId>
+  # Example slotId: 2026-05-16:fb59c2e3-4ea0-4036-9939-cc0336a09e49
+  # Use prisma-checkout.sh slots <YYYY-MM-DD> to find slotIds.
+  slot)
+    ORDER_ID="${1:?Usage: prisma-edit-order.sh slot <orderId> <newSlotId>}"
+    NEW_SLOT_ID="${2:?Usage: prisma-edit-order.sh slot <orderId> <newSlotId>}"
+
+    echo "Reserving new slot $NEW_SLOT_ID..." >&2
+    RESERVE_PAYLOAD=$(python3 -c "
+import json
+print(json.dumps({
+    'operationName': 'CreateDeliverySlotReservation',
+    'variables': {'deliverySlotId': '$NEW_SLOT_ID'},
+    'extensions': {'persistedQuery': {'version': 1, 'sha256Hash': '72d087d3d473c29bed2918464987f64aa4a9dab9d3afdc534aee168e8815dbee'}},
+}))
+")
+    RESERVE_RESPONSE=$(printf '%s' "$RESERVE_PAYLOAD" | curl_auth -X POST "$API" \
+      -H 'Content-Type: application/json' -d @-)
+
+    RESERVATION_ID=$(python3 -c "
+import json, sys
+data = json.loads(sys.argv[1])
+errors = data.get('errors', [])
+if errors:
+    for e in errors:
+        print('ERROR: ' + e.get('message', str(e)), file=sys.stderr)
+    sys.exit(1)
+print(data['data']['createDeliverySlotReservation']['reservationId'])
+" "$RESERVE_RESPONSE")
+
+    if [ -z "$RESERVATION_ID" ]; then
+      echo "Failed to reserve slot." >&2
+      exit 1
+    fi
+    echo "Reserved: $RESERVATION_ID" >&2
+
+    echo "Fetching order $ORDER_ID..." >&2
+    RESPONSE=$(fetch_order "$ORDER_ID")
+    ORDER_JSON=$(parse_order "$RESPONSE")
+
+    echo "Submitting UpdateOrder with new slot..." >&2
+
+    VARS=$(python3 -c "
+import json, sys
+
+order = json.loads(sys.argv[1])
+order_id = sys.argv[2]
+packaging_ean = sys.argv[3]
+new_slot_id = sys.argv[4]
+reservation_id = sys.argv[5]
+
+# Preserve cart items as-is (only the slot is changing)
+cart_items = []
+for item in order.get('cartItems', []):
+    ean = item['ean']
+    if ean == packaging_ean or item.get('productType') != 'PRODUCT':
+        continue
+    cart_items.append({
+        'additionalInfo': item.get('additionalInfo', '') or '',
+        'basicQuantityUnit': item.get('basicQuantityUnit', 'KPL'),
+        'ean': ean,
+        'itemCount': str(item.get('itemCount', 1)),
+        'replace': item.get('replace', False),
+    })
+
+# Append packaging
+cart_items.append({
+    'additionalInfo': '',
+    'basicQuantityUnit': 'KPL',
+    'ean': packaging_ean,
+    'itemCount': '1',
+    'replace': False,
+})
+
+# Build customer
+customer = order.get('customer', {})
+geo = customer.get('geocodedAddress', {})
+pos = geo.get('position', {}) if geo else {}
+customer_input = {
+    'companyName': customer.get('companyName'),
+    'companyIdentityCode': customer.get('companyIdentityCode'),
+    'email': customer.get('email', ''),
+    'firstName': customer.get('firstName', ''),
+    'lastName': customer.get('lastName', ''),
+    'phone': customer.get('phone', ''),
+    'invoiceNumber': customer.get('invoiceNumber', ''),
+    'addressLine1': customer.get('addressLine1', ''),
+    'addressLine2': customer.get('addressLine2'),
+    'city': customer.get('city', 'Tallinn'),
+    'postalCode': customer.get('postalCode', ''),
+}
+if pos:
+    customer_input['addressCoordinates'] = {
+        'latitude': pos.get('lat'),
+        'longitude': pos.get('lng'),
+    }
+
+variables = {
+    'id': order_id,
+    'order': {
+        'cartItems': cart_items,
+        'customer': customer_input,
+        'paymentMethod': 'CARD_PAYMENT',
+        'storeId': order.get('storeId', ''),
+        'reservationId': reservation_id,
+        'deliverySlotId': new_slot_id,
+        'discountCode': '',
+        'additionalInfo': order.get('additionalInfo', '') or '',
+    }
+}
+
+print(json.dumps(variables, ensure_ascii=False))
+" "$ORDER_JSON" "$ORDER_ID" "$PACKAGING_EAN" "$NEW_SLOT_ID" "$RESERVATION_ID")
+
+    RESPONSE=$(send_update "$ORDER_ID" "$VARS")
+    parse_update_response "$RESPONSE"
+    ;;
+
   *)
     echo "Unknown action: $ACTION" >&2
     echo "Usage:" >&2
@@ -670,6 +806,7 @@ print(json.dumps(variables, ensure_ascii=False))
     echo "  prisma-edit-order.sh remove <orderId> <ean> [ean...]       — remove items" >&2
     echo "  prisma-edit-order.sh set <orderId> <ean:qty> [ean:qty...]  — set exact quantities" >&2
     echo "  prisma-edit-order.sh replace <orderId> <ean:qty> [...]     — replace entire cart" >&2
+    echo "  prisma-edit-order.sh slot <orderId> <newSlotId>            — change delivery slot" >&2
     exit 1
     ;;
 esac

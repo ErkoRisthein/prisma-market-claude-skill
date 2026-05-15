@@ -107,7 +107,7 @@ for i, ean in enumerate(eans):
         'inStoreSelection': True,
         'priceUnit': 'KPL',
         'quantityMultiplier': 1,
-        'replace': True,
+        'replace': False,
         'countryName': {'et': None, '__typename': 'CountryName'},
         'productType': 'PRODUCT',
         'campaignPrice': None,

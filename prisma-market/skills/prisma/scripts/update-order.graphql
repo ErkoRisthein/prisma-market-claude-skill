@@ -1,0 +1,145 @@
+mutation UpdateOrder($id: String!, $order: OrderInput) {
+  updateOrder(id: $id, order: $order) {
+    ...CreateOrder
+    __typename
+  }
+}
+
+fragment ProductLabel on ClientProductLabel {
+  backgroundColor
+  color
+  labelText
+  labelType
+  __typename
+}
+
+fragment PrimaryDiscountRule on IProductDiscountRule {
+  id
+  terms
+  termsShort
+  termsShortAccessible
+  __typename
+}
+
+fragment ProductPricing on ProductPricing {
+  campaignPrice
+  currentPrice
+  salesUnit
+  comparisonPrice
+  comparisonUnit
+  isApproximatePrice
+  depositPrice
+  depositlessPrice
+  lowest30DayPrice
+  depositlessLowest30DayPrice
+  campaignPriceValidUntil
+  regularPrice
+  quantityMultiplier
+  primaryDiscountRule {
+    ...PrimaryDiscountRule
+    __typename
+  }
+  __typename
+}
+
+fragment productImages on ProductDetails {
+  productImages {
+    modifiersString
+    extensionString
+    mainImage {
+      name
+      urlTemplate
+      __typename
+    }
+    mobileReadyHeroImage {
+      name
+      urlTemplate
+      __typename
+    }
+    variableImages {
+      name
+      urlTemplate
+      __typename
+    }
+    __typename
+  }
+  __typename
+}
+
+fragment OrderCartItem on CartItem {
+  id
+  ean
+  itemCount
+  price
+  name
+  replace
+  additionalInfo
+  priceUnit
+  productType
+  basicQuantityUnit
+  labels {
+    ...ProductLabel
+    __typename
+  }
+  product {
+    id
+    sokId
+    storeId
+    isGlobalFallback
+    pricing {
+      ...ProductPricing
+      __typename
+    }
+    productDetails {
+      ...productImages
+      wineSweetness
+      __typename
+    }
+    productType
+    __typename
+  }
+  __typename
+}
+
+fragment CreateOrder on Order {
+  id
+  modifiedAt
+  accessToken
+  createdAt
+  modifiedAt
+  customer {
+    firstName
+    lastName
+    address
+    addressLine1
+    addressLine2
+    postalCode
+    city
+    email
+    companyName
+    companyIdentityCode
+    invoiceNumber
+    phone
+    sMembershipNumber
+    sMembershipCardLastName
+    sMembershipCardPostalCode
+    __typename
+  }
+  deliveryDate
+  orderNumber
+  deliveryMethod
+  discountCode
+  paymentMethod
+  paymentStatus
+  deliveryTime
+  deliverySlotId
+  additionalInfo
+  storeId
+  orderStatus
+  homeDeliveryType
+  cartItems {
+    ...OrderCartItem
+    __typename
+  }
+  __typename
+}
