@@ -24,7 +24,8 @@ data = json.loads(sys.argv[1])
 product = data.get('data', {}).get('product')
 
 if not product:
-    print('Product not found.')
+    print('Product not found.', file=sys.stderr)
+    print('null')  # valid JSON for pipeline consumers
     sys.exit(1)
 
 hierarchy = product.get('hierarchyPath') or []

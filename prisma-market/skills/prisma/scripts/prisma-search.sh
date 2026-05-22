@@ -29,7 +29,8 @@ product_list = data.get('data', {}).get('store', {}).get('products', {})
 products = product_list.get('items', []) if isinstance(product_list, dict) else []
 
 if not products:
-    print('No products found.')
+    print('No products found.', file=sys.stderr)
+    print('[]')  # valid JSON for pipeline consumers
     sys.exit(0)
 
 results = []
