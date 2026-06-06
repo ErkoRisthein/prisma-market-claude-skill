@@ -84,10 +84,14 @@ prisma-stores.sh
 Before ordering, validate availability and get current prices:
 
 ```bash
-prisma-validate-cart.sh [storeId] <ean1:qty1> [ean2:qty2] ...
+prisma-validate-cart.sh [storeId] <ean1:qty1[:r]> [ean2:qty2[:r]] ...
 ```
 
-Returns availability, current/campaign prices, and estimated total.
+Returns availability, current/campaign prices, and estimated total. The item
+format is identical to `order` (see substitution note below), so build the item
+list **once** and feed the same string to both validate and order. The `:r`
+(allow-substitution) flag is echoed back as `"replace"` per item so you can
+confirm which items will accept a replacement if out of stock.
 
 ### 5. Authenticate
 
@@ -157,7 +161,10 @@ prisma-checkout.sh order <ean1:qty1> [ean2:qty2] ...
 - Delivery address, contact info read from `.env`
 - Returns full order details including orderNumber, orderStatus, cartItems with prices
 - Order is created with `paymentStatus: PENDING` — use the `pay` subcommand to complete payment
-- **Substitution**: every item defaults to **`replace=False`** (no substitutes). To allow substitution on a specific item, append `:r` to the pair: `EAN:qty:r`. Use sparingly — many users have strict brand/dietary preferences and a swapped product can violate them silently.
+- **Substitution (`replace` flag)**: every item defaults to **`replace=False`** — if it's out of stock the picker drops it (the order summary lists it under "Puuduvad tooted" / missing products) rather than substituting. To let the picker swap in an equivalent, append `:r` to the pair: `EAN:qty:r`.
+  - **Use `:r` for commodity items where any brand is fine** — eggs, plain produce (broccoli, bananas, onions), generic frozen veg. These are exactly the items that go out of stock and that you'd happily accept a substitute for.
+  - **Leave it OFF (default) for brand/diet-specific items** — anything where a swap could violate a preference: specific milk packaging, a named yogurt/curd brand, clean-ingredient liver pâté, a verified baby-food pouch (vs jar), fragrance-free care products. A silent swap there is worse than a missing item.
+  - The same `:r` format works in `prisma-validate-cart.sh`, so build the item list once and reuse it.
 
 #### 6d. List saved payment cards
 
@@ -181,10 +188,10 @@ prisma-checkout.sh pay <orderId> <cardId>
 - For saved cards, payment completes automatically (frictionless 3DS, no user interaction)
 - Returns `{ status: 'success', orderId, url }` on success
 
-**Full end-to-end flow**:
+**Full end-to-end flow** (note `:r` on the eggs — a commodity item we'd accept a substitute for):
 ```bash
-# 1. Validate items
-prisma-validate-cart.sh 2060673000002:1 4740012345678:2
+# 1. Validate items (same list works for both validate + order)
+prisma-validate-cart.sh 2060673000002:1 4740012345678:2:r
 
 # 2. Check auth
 prisma-auth.sh check
@@ -196,7 +203,7 @@ prisma-checkout.sh slots 2026-03-05
 prisma-checkout.sh reserve "2026-03-05:uuid-here"
 
 # 5. Place order
-prisma-checkout.sh order "RESERVATION#uuid" "2026-03-05:uuid-here" 2060673000002:1 4740012345678:2
+prisma-checkout.sh order "RESERVATION#uuid" "2026-03-05:uuid-here" 2060673000002:1 4740012345678:2:r
 
 # 6. Pay with saved card (run output via browser_run_code)
 prisma-checkout.sh pay "<orderId>"

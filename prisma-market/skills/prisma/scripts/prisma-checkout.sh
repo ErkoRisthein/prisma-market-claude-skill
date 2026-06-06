@@ -3,7 +3,9 @@
 # Usage:
 #   prisma-checkout.sh slots [date] [postalCode]       — list delivery slots
 #   prisma-checkout.sh reserve <slotId>                 — reserve a delivery slot
-#   prisma-checkout.sh order <ean1:qty1> [ean2:qty2]... — place order
+#   prisma-checkout.sh order <ean1:qty1[:r]> ...        — place order
+#       Item format: EAN:qty  (no substitution — item dropped if out of stock)
+#                    EAN:qty:r (allow substitution — picker finds a replacement)
 #   prisma-checkout.sh cards                            — list saved payment cards
 #   prisma-checkout.sh pay <orderId> [cardId]           — pay with saved card (outputs Playwright code)
 #
@@ -490,7 +492,7 @@ PLAYWRIGHT
     echo "Usage:" >&2
     echo "  prisma-checkout.sh slots [date] [postalCode]   — list delivery slots" >&2
     echo "  prisma-checkout.sh reserve <slotId>             — reserve a slot" >&2
-    echo "  prisma-checkout.sh order [reservationId slotId] <ean:qty>... — place order" >&2
+    echo "  prisma-checkout.sh order [reservationId slotId] <ean:qty[:r]>... — place order (:r = allow substitution)" >&2
     echo "  prisma-checkout.sh cards                        — list saved payment cards" >&2
     echo "  prisma-checkout.sh pay <orderId> [cardId]       — pay with saved card" >&2
     exit 1

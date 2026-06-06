@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 # Validate cart items at Prisma Market (check availability + prices)
-# Usage: prisma-validate-cart.sh [storeId] <ean1:qty1> [ean2:qty2] ...
+# Usage: prisma-validate-cart.sh [storeId] <ean1:qty1[:r]> [ean2:qty2[:r]] ...
+#
+# Item format matches prisma-checkout.sh order, so the SAME item list works for
+# both steps:
+#   EAN:qty      — no substitution if out of stock (item is dropped)
+#   EAN:qty:r    — allow substitution (picker finds an equivalent replacement)
+# The :r flag is ignored for validation but echoed back as "replace" in the
+# output so you can confirm which items are set to allow substitution.
 
 set -euo pipefail
 
@@ -27,9 +34,11 @@ store_id = sys.argv[1]
 items = []
 for arg in sys.argv[2:]:
     parts = arg.split(':')
-    if len(parts) != 2:
-        print(f'Error: Invalid format \"{arg}\". Use ean:quantity', file=sys.stderr)
+    if len(parts) not in (2, 3):
+        print(f'Error: Invalid format \"{arg}\". Use ean:quantity or ean:quantity:r', file=sys.stderr)
         sys.exit(1)
+    # The optional :r flag (allow substitution) is for the order step;
+    # validation only needs ean + itemCount.
     items.append({'ean': parts[0], 'itemCount': parts[1]})
 
 query = 'query ValidateCart(\$storeId: ID!, \$items: [PartialCartItemInput!]!) { validateCart(storeId: \$storeId, partialCartItems: \$items) { isOrderingPossible cartValidationItems { ean availableQuantity product { name price pricing { campaignPrice regularPrice currentPrice } } } } }'
@@ -56,11 +65,13 @@ import json, sys
 data = json.loads(sys.argv[1])
 items_raw = sys.argv[2:]
 
-# Parse input items for quantity lookup
+# Parse input items for quantity + replace-flag lookup
 qty_map = {}
+replace_map = {}
 for arg in items_raw:
     parts = arg.split(':')
     qty_map[parts[0]] = int(parts[1])
+    replace_map[parts[0]] = (len(parts) == 3 and parts[2] == 'r')
 
 validation = data.get('data', {}).get('validateCart')
 
@@ -96,6 +107,7 @@ for item in validation.get('cartValidationItems', []):
         'campaignPrice': pricing.get('campaignPrice'),
         'availableQuantity': item.get('availableQuantity'),
         'requestedQuantity': qty,
+        'replace': replace_map.get(item['ean'], False),
         'lineTotal': round(line_total, 2)
     })
     total += line_total
